@@ -3,9 +3,6 @@ import { clerkClient } from "@clerk/express";
 export const auth = async (req, res, next) => {
   try {
     const { userId, has } = req.auth();
-
-    // If there's no userId, the user is not authenticated.
-    // Return a 401 Unauthorized status with a JSON error message.
     if (!userId) {
       return res.status(401).json({
         success: false,

@@ -11,6 +11,7 @@ import RemoveBackground from "./pages/RemoveBackground";
 import { BlogTitle } from "./pages/BlogTitle";
 import { useAuth } from "@clerk/clerk-react";
 import { useEffect } from "react";
+import Toaster from ''
 
 const App = () => {
   // --- Start of Token Logging Code ---
