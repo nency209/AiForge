@@ -18,7 +18,7 @@ const navItems = [
   { to: "/ai/blog-title", label: "Blog Titles", Icon: Hash },
   { to: "/ai/generate-image", label: "Generate Images", Icon: Image },
   { to: "/ai/remove-background", label: "Remove Background", Icon: Eraser },
-  { to: "/ai/remove-object", label: "Remove Object", Icon: Scissors },
+ 
   { to: "/ai/review-resume", label: "Review Resume", Icon: FileText },
 ];
 const Sidebar = ({ sidebar, setsidebar }) => {

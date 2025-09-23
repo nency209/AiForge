@@ -8,7 +8,9 @@ import Userrouter from './routes/userRoute.js'
 
 const app=express()
 dotenv.config()
-app.use(cors())
+app.use(cors(({
+  origin: 'http://localhost:5173' 
+})))
 app.use(express.json())
 app.use(clerkMiddleware())
 connectCloudinary()

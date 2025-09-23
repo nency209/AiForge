@@ -8,10 +8,12 @@ import pdf from "pdf-parse/lib/pdf-parse.js";
 
 export const generateArticle = async (req, res) => {
   try {
-    const { userId } = req.auth();
+    const { userId } = req.auth; // Assuming auth middleware attaches auth object
     const { prompt, length } = req.body;
     const plan = req.plan;
     const free_usage = req.free_usage;
+
+    console.log("Received request:", { userId, prompt, length, plan, free_usage });
 
     if (!prompt || !length) {
       return res.status(400).json({
@@ -28,76 +30,65 @@ export const generateArticle = async (req, res) => {
     }
 
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY) {
+        console.error("GEMINI_API_KEY is not set in environment variables.");
+        return res.status(500).json({ success: false, message: "Server configuration error: AI service is not configured." });
+    }
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+
+    // This prompt is now clean because it receives just the topic from the frontend
+    const finalPrompt = `Write a comprehensive, well-structured article on the topic: "${prompt}". The article should be engaging, informative, and approximately ${length} tokens in length. Format the output in markdown.`;
 
     const payload = {
       contents: [
         {
-          parts: [
-            {
-              text: `Write an article about the following topic: "${prompt}". The article should be approximately ${length} tokens long.`,
-            },
-          ],
+          parts: [{ text: finalPrompt }],
         },
       ],
       generationConfig: {
         maxOutputTokens: length,
+        temperature: 0.7,
+        topP: 1,
       },
     };
+    
+    console.log("Sending payload to Gemini:", JSON.stringify(payload, null, 2));
 
-    // --- Start of Retry Logic ---
-    let apiResponse;
-    const maxRetries = 3;
-    let attempt = 0;
 
-    for (attempt = 1; attempt <= maxRetries; attempt++) {
-      apiResponse = await fetch(API_URL, {
+    const apiResponse = await fetch(API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
-      });
+    });
 
-      // If the request was successful (e.g., status 200), exit the loop.
-      if (apiResponse.ok) {
-        break;
-      }
-
-      // If the error is a server overload (503), wait and retry.
-      if (apiResponse.status === 503 && attempt < maxRetries) {
-        console.log(
-          `Attempt ${attempt}: Model is overloaded. Retrying in ${
-            attempt * 2
-          } seconds...`
-        );
-        // Wait for 2, 4 seconds before the next retry.
-        await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
-      } else {
-        // For other errors, or on the last retry, break the loop and proceed to handle the error.
-        break;
-      }
-    }
-    // --- End of Retry Logic ---
+    const responseText = await apiResponse.text(); // Get raw text to avoid JSON parse errors on non-JSON responses
 
     if (!apiResponse.ok) {
-      const errorData = await apiResponse.json();
-      console.error("Gemini API Error:", errorData);
+        console.error("Gemini API Error Status:", apiResponse.status);
+        console.error("Gemini API Error Response:", responseText);
+        let errorMessage = "An unknown error occurred with the AI service.";
+        try {
+            const errorData = JSON.parse(responseText);
+            errorMessage = errorData.error?.message || errorMessage;
+        } catch (e) {
+            errorMessage = "Could not parse error response from AI service.";
+        }
       return res.status(apiResponse.status).json({
         success: false,
-        message: `Error from AI service: ${
-          errorData.error.message || "Unknown error"
-        }`,
+        message: `Error from AI service: ${errorMessage}`,
       });
     }
 
-    const responseData = await apiResponse.json();
+    const responseData = JSON.parse(responseText);
     const content = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!content) {
+      console.error("Failed to parse content from valid API response:", responseData);
       return res.status(500).json({
         success: false,
-        message: "Failed to parse content from AI response.",
+        message: "Failed to parse content from AI response, even though the request was successful.",
       });
     }
 
@@ -106,26 +97,37 @@ export const generateArticle = async (req, res) => {
     if (plan !== "premium") {
       await clerkClient.users.updateUserMetadata(userId, {
         privateMetadata: {
-          free_usage: free_usage + 1,
+          free_usage: (free_usage || 0) + 1,
         },
       });
     }
 
     res.json({ success: true, content });
   } catch (error) {
-    console.error("Server Error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Server Error in generateArticle:", error);
+
+    // Improved error handling to detect network issues
+    if (error.cause) {
+      // This block catches specific network errors (e.g., DNS resolution, connection refused)
+      return res.status(500).json({
+        success: false,
+        message: `Network error: Unable to connect to the AI service. Please check the server's internet connection and firewall rules. Details: ${error.message}`,
+      });
+    }
+
+    // Fallback for other types of errors
+    res.status(500).json({ success: false, message: "An internal server error occurred." });
   }
 };
 
 export const generateBlogTitle = async (req, res) => {
   try {
     const { userId } = req.auth();
-    const { prompt } = req.body;
+    const { prompt ,category} = req.body;
     const plan = req.plan;
     const free_usage = req.free_usage;
 
-    if (!prompt || !length) {
+    if (!prompt ) {
       return res.status(400).json({
         success: false,
         message: "Bad Request: 'prompt' and 'length' are required.",
@@ -147,14 +149,12 @@ export const generateBlogTitle = async (req, res) => {
         {
           parts: [
             {
-              text: `Write an article about the following topic: "${prompt}". The article should be approximately ${length} tokens long.`,
+              text: `Write an Blog title: "${prompt}" for this ${category}`,
             },
           ],
         },
       ],
-      generationConfig: {
-        maxOutputTokens: length,
-      },
+      
     };
 
     // --- Start of Retry Logic ---
@@ -232,11 +232,11 @@ export const generateBlogTitle = async (req, res) => {
 
 export const generateImage = async (req, res) => {
   try {
-    // 1. AUTHENTICATION & INPUT VALIDATION
     const { userId } = req.auth();
     const plan = req.plan;
     const free_usage = req.free_usage;
-    const { prompt } = req.body;
+    // Destructure ispublic from the request body
+    const { prompt, ispublic } = req.body;
 
     if (!prompt) {
       return res
@@ -244,7 +244,6 @@ export const generateImage = async (req, res) => {
         .json({ success: false, message: "A prompt is required." });
     }
 
-    // 2. USAGE LIMIT CHECK
     if (plan !== "premium" && free_usage >= 10) {
       return res.status(403).json({
         success: false,
@@ -252,9 +251,8 @@ export const generateImage = async (req, res) => {
       });
     }
 
-    // 3. IMAGE GENERATION (HUGGING FACE)
     const hfResponse = await axios.post(
-      process.env.HUGGINGFACE_API_URL, // Uses the URL from your .env file
+      process.env.HUGGINGFACE_API_URL,
       { inputs: prompt },
       {
         headers: {
@@ -266,11 +264,11 @@ export const generateImage = async (req, res) => {
       }
     );
     const imageBuffer = hfResponse.data;
-
-    // 4. IMAGE UPLOAD (CLOUDINARY)
+    
+    // You can now use the `ispublic` variable, for example, by adding a tag.
     const cloudinaryResult = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { resource_type: "image" },
+        { resource_type: "image", tags: ispublic ? ['public'] : ['private'] },
         (error, result) => {
           if (error) return reject(error);
           resolve(result);
@@ -283,26 +281,22 @@ export const generateImage = async (req, res) => {
       throw new Error("Failed to upload image to Cloudinary.");
     }
     const imageUrl = cloudinaryResult.secure_url;
-
-    // 5. DATABASE INSERTION
+    
+    // Save the imageUrl as the 'content' for consistency
     await sql`insert into creations (user_id, prompt, content, type) VALUES (${userId}, ${prompt}, ${imageUrl}, 'image')`;
 
-    // 6. UPDATE USER METADATA
     if (plan !== "premium") {
       await clerkClient.users.updateUserMetadata(userId, {
-        privateMetadata: { free_usage: free_usage + 1 },
+        privateMetadata: { free_usage: (free_usage || 0) + 1 },
       });
     }
 
-    // 7. SUCCESS RESPONSE
+    // Send the correct field name that the frontend expects
     res.json({ success: true, imageUrl: imageUrl });
   } catch (err) {
-    // --- ROBUST ERROR HANDLING ---
-    console.error("--- FULL ERROR in generateImage ---");
-    console.error(err);
+    console.error("--- FULL ERROR in generateImage ---", err);
 
     if (err.response) {
-      // Specifically handles Hugging Face API errors
       const errorData = Buffer.from(err.response.data).toString("utf-8");
       return res.status(err.response.status).json({
         success: false,
@@ -310,8 +304,7 @@ export const generateImage = async (req, res) => {
         details: errorData,
       });
     }
-
-    // Fallback for Cloudinary, DB, or other internal errors
+    
     res.status(500).json({
       success: false,
       message:
@@ -322,18 +315,19 @@ export const generateImage = async (req, res) => {
 
 export const removeImageBackground = async (req, res) => {
   try {
-    const { userId } = req.auth();
-    const { image } = req.file;
+    const { userId } = req.auth;
     const plan = req.plan;
     const free_usage = req.free_usage;
 
-    if (!prompt || !length) {
+    // 1. Validate that a file was uploaded by the middleware
+    if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: "Bad Request: 'prompt' and 'length' are required.",
+        message: "Bad Request: No image file was provided.",
       });
     }
 
+    // 2. Check user's plan and usage limits
     if (plan !== "premium" && free_usage >= 10) {
       return res.status(403).json({
         success: false,
@@ -341,117 +335,127 @@ export const removeImageBackground = async (req, res) => {
       });
     }
 
-    const { secure_url } = await cloudinary.uploader.upload(image.path, {
-      transformation: [
-        {
-          effect: "background_removal",
-          background_removal: "remove_the_background",
-        },
-      ],
+    // 3. Upload the image to Cloudinary and apply the background removal effect
+    const { secure_url } = await cloudinary.uploader.upload(req.file.path, {
+      // The effect transformation removes the background
+      effect: "background_removal",
     });
+    
+    // Check if the upload and transformation were successful
+    if (!secure_url) {
+        throw new Error('Cloudinary failed to process the image.');
+    }
 
-    await sql`insert into creations (user_id,prompt,content,type) VALUES (${userId},'Remove background from image',${secure_url},'image')`;
+    // 4. Record the creation in the database
+    await sql`INSERT INTO creations (user_id, prompt, content, type) 
+              VALUES (${userId}, 'Background Removal', ${secure_url}, 'image')`;
 
+    // 5. Update the user's free usage count if they are not a premium user
     if (plan !== "premium") {
       await clerkClient.users.updateUserMetadata(userId, {
         privateMetadata: {
-          free_usage: free_usage + 1,
+          free_usage: (free_usage || 0) + 1,
         },
       });
     }
 
-    res.json({ success: true, content: secure_url });
+    // 6. Send a success response with the URL of the new image
+    res.json({ success: true, imageUrl: secure_url });
+    
   } catch (error) {
-    console.error("Server Error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Server Error in removeImageBackground:", error);
+    res.status(500).json({ success: false, message: "An internal server error occurred." });
   }
 };
 
-export const removeImageObject = async (req, res) => {
-  try {
-    const { userId } = req.auth();
-    const { object } = req.body;
-    const { image } = req.file;
-    const plan = req.plan;
-    const free_usage = req.free_usage;
 
-    if (!prompt || !length) {
-      return res.status(400).json({
-        success: false,
-        message: "Bad Request: 'prompt' and 'length' are required.",
-      });
-    }
-
-    if (plan !== "premium" && free_usage >= 10) {
-      return res.status(403).json({
-        success: false,
-        message: "Limit reached. Please upgrade your plan to continue.",
-      });
-    }
-
-    const { public_id } = await cloudinary.uploader.upload(image.path);
-    const imageUrl = cloudinary.url(public_id, {
-      transformation: [{ effect: `gen_remove:${object}` }],
-      resource_type: "image",
-    });
-
-    await sql`insert into creations (user_id,prompt,content,type) VALUES (${userId},${`removed ${object} from image`},${imageUrl},'image')`;
-
-    if (plan !== "premium") {
-      await clerkClient.users.updateUserMetadata(userId, {
-        privateMetadata: {
-          free_usage: free_usage + 1,
-        },
-      });
-    }
-
-    res.json({ success: true, content: imageUrl });
-  } catch (error) {
-    console.error("Server Error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
 
 export const reviewResume = async (req, res) => {
   try {
-    const { userId } = req.auth();
-    constresume = req.file;
+    const { userId } = req.auth;
+    const resume = req.file;
     const plan = req.plan;
-    const free_usage = req.free_usage;
 
+    // 1. Check for premium plan
     if (plan !== "premium") {
-      return res.json({
+      return res.status(403).json({
         success: false,
-        message: "this features is only availble for premium subscription",
+        message: "This feature is only available for premium subscribers.",
       });
     }
 
+    // 2. Validate that a file was uploaded
+    if (!resume) {
+      return res.status(400).json({
+        success: false,
+        message: "Bad Request: No resume file was provided.",
+      });
+    }
+
+    // 3. Validate file size (e.g., max 5MB)
     if (resume.size > 5 * 1024 * 1024) {
-      return res.json({
+      return res.status(400).json({
         success: false,
-        message: "Resume file size exceeds allowed size (5mb)",
+        message: "Resume file size exceeds the 5MB limit.",
       });
     }
 
+    // 4. Read and parse the PDF file to extract text
     const dataBuffer = fs.readFileSync(resume.path);
     const pdfData = await pdf(dataBuffer);
+    
+    // Clean up the temporary file
+    fs.unlinkSync(resume.path); 
 
-    const prompt = `Review the following resume and provide constructive feedback on its strength,weaknesses and areas for improvement.Resume Content:\n\n${pdfData.text}`;
+    if (!pdfData.text) {
+        return res.status(500).json({
+            success: false,
+            message: "Could not extract text from the provided PDF."
+        });
+    }
 
-    const response = await AI.chat.completions.create({
-      model: "gemini-2.0-flash",
-      messages: [{ role: "user", content: prompt }],
-      tempertaure: 0.7,
-      max_tokens: 1000,
+    // 5. Call the Gemini API to review the resume text
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+    
+    const prompt = `Review the following resume and provide constructive feedback. Analyze its strengths, weaknesses, and areas for improvement. Format the feedback clearly using Markdown. Resume Content:\n\n${pdfData.text}`;
+    
+    const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1500,
+        },
+    };
+
+    const apiResponse = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
     });
 
-    const content = response.choices[0].message.content;
+    if (!apiResponse.ok) {
+        const errorData = await apiResponse.json();
+        console.error("Gemini API Error:", errorData);
+        return res.status(500).json({ success: false, message: "Error from AI service." });
+    }
 
-    await sql`insert into creations (user_id,prompt,content,type) VALUES (${userId},'Review the uploaded resume',${content},'resume-review')`;
+    const responseData = await apiResponse.json();
+    const content = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
 
+    if (!content) {
+        return res.status(500).json({ success: false, message: "Failed to parse content from AI response." });
+    }
+
+    // 6. Save the result to the database
+    await sql`INSERT INTO creations (user_id, prompt, content, type) 
+              VALUES (${userId}, 'Review the uploaded resume', ${content}, 'resume-review')`;
+
+    // 7. Send the analysis back to the client
     res.json({ success: true, content });
+
   } catch (error) {
-    console.error("Server Error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Server Error in reviewResume:", error);
+    res.status(500).json({ success: false, message: "An internal server error occurred." });
   }
 };

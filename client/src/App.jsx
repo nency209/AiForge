@@ -6,12 +6,12 @@ import Dashboard from "./pages/Dashboard";
 import WriteArticle from "./pages/WriteArticle";
 import GenerateImage from "./pages/GenerateImage";
 import ReviewResume from "./pages/ReviewResume";
-import RemoveObject from "./pages/RemoveObject";
+
 import RemoveBackground from "./pages/RemoveBackground";
 import { BlogTitle } from "./pages/BlogTitle";
 import { useAuth } from "@clerk/clerk-react";
 import { useEffect } from "react";
-import Toaster from ''
+import {Toaster} from 'react-hot-toast'
 
 const App = () => {
   // --- Start of Token Logging Code ---
@@ -36,6 +36,7 @@ const App = () => {
 
   return (
     <>
+    <Toaster/>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/ai" element={<Layout />}>
@@ -43,7 +44,7 @@ const App = () => {
           <Route path="write-article" element={<WriteArticle />} />
           <Route path="generate-image" element={<GenerateImage />} />
           <Route path="review-resume" element={<ReviewResume />} />
-          <Route path="remove-object" element={<RemoveObject />} />
+          
           <Route path="remove-background" element={<RemoveBackground />} />
           <Route path="blog-title" element={<BlogTitle />} />
         </Route>
