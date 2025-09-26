@@ -48,7 +48,7 @@ Auth & Database
 
 🚀 Getting Started
 1️⃣ Clone Repository
-git clone https://github.com/your-username/ai-forge.git
+git clone https://github.com/nency209/ai-forge.git
 cd ai-forge
 
 2️⃣ Install Dependencies
