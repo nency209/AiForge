@@ -39,14 +39,14 @@ const Dashboard = () => {
   // Initialize state with an empty array to prevent errors
   const [creations, setCreations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { getToken } = useAuth();
+  const { getToken: fetchToken } = useAuth();
 
   const getDashboardData = async () => {
     try {
       setLoading(true);
       const { data } = await axios.get("/api/ai/get-user-creations", {
         headers: {
-          Authorization: `Bearer ${await getToken()}`,
+          Authorization: `Bearer ${await fetchToken()}`,
         },
       });
 
@@ -55,7 +55,7 @@ const Dashboard = () => {
         setCreations(data.creations || []);
       } else {
         toast.error(data.message || "Failed to fetch creations.");
-        setCreations([]); // Also ensure it's an array on handled API failure
+        setCreations([]); 
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Could not fetch data.");
@@ -68,7 +68,8 @@ const Dashboard = () => {
 
   useEffect(() => {
     getDashboardData();
-  },[]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-gray-50">
