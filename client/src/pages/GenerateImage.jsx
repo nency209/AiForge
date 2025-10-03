@@ -8,7 +8,7 @@ import { useAuth } from "@clerk/clerk-react";
 import toast from "react-hot-toast";
 
 
-axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL||"http://localhost:8000";
 
 
 const GenerateImage = () => {

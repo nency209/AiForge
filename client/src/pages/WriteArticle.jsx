@@ -8,7 +8,7 @@ import { useAuth } from "@clerk/clerk-react";
 import toast from "react-hot-toast";
 import Markdown from "react-markdown";
 
-axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL  ||"http://localhost:8000" ;
 
 const WriteArticle = () => {
   const initialstate = {
@@ -22,12 +22,11 @@ const WriteArticle = () => {
   const handleSubmit = async (values, { resetForm }) => {
     try {
       setloading(true);
-      
-      const prompt = values.name; 
+
+      const prompt = values.name;
 
       const { data } = await axios.post(
         "/api/ai/generate-article",
-       
         { prompt, length: selectedlength.length },
         { headers: { Authorization: `Bearer ${await getToken()}` } }
       );
@@ -130,11 +129,9 @@ const WriteArticle = () => {
             </div>
           </div>
         ) : (
-          <div className="mt-3 h-full overflow-y-scroll text-sm text-slate-600" >
+          <div className="mt-3 h-full overflow-y-scroll text-sm text-slate-600">
             <div className="reset-tw">
-              <Markdown>
-                {content}
-              </Markdown>
+              <Markdown>{content}</Markdown>
             </div>
           </div>
         )}

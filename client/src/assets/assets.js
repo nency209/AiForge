@@ -31,14 +31,14 @@ export const AiToolsData = [
         description: 'Find the perfect, catchy title for your blog posts with our AI-powered generator.',
         Icon: Hash,
         bg: { from: '#B153EA', to: '#E549A3' },
-        path: '/ai/blog-titles'
+        path: '/ai/blog-title'
     },
     {
         title: 'AI Image Generation',
         description: 'Create stunning visuals with our AI image generation tool, Experience the power of AI ',
         Icon: Image,
         bg: { from: '#20C363', to: '#11B97E' },
-        path: '/ai/generate-images'
+        path: '/ai/generate-image'
     },
     {
         title: 'Background Removal',

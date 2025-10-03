@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import  axios from 'axios'
 import Markdown from "react-markdown";
   
-axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL ||"http://localhost:8000";
 export const BlogTitle = () => {
   const initialstate = {
     name: "",
