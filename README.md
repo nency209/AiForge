@@ -1,5 +1,5 @@
 🧠 AI Forge – AI-Powered Content Creation Platform:
-live demo=https://ai-forge-ckf4tmnr4-nencys-projects-a8be8e30.vercel.app/
+live demo=ai-forge-tawny.vercel.app
 
 AI Forge is a Full-Stack SaaS Application that empowers users to generate articles, images, blog titles, and resumes using advanced AI services.
 It combines a modern frontend, scalable backend, and powerful AI integrations to deliver a smooth and intelligent content creation experience.
